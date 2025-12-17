@@ -1,11 +1,21 @@
+using System;
 using System.Runtime.CompilerServices;
+using TMPro;
 using UnityEngine;
 
-public class GetFingerAxis : MonoBehaviour
+public class FingerAxisManager : MonoBehaviour
 {
+    [SerializeField] private TextMeshProUGUI debugText;
+
+    [SerializeField] private FingerKinematicsFilter filter = new FingerKinematicsFilter();
+    [SerializeField] private VolumeMeter volumeMeter;
     private Transform finger_transform;
     private Vector3 currentAcceleration;
     private Vector3 prevPos, prevVel;
+
+    public Vector3 CurrentPos => filter.smoothedPosition;
+    public Vector3 CurrentVel => filter.smoothedVelocity;
+    public Vector3 CurrentAcc => filter.smoothedAcceleration;
     private bool got_info;
     void Start()
     {
@@ -16,9 +26,10 @@ public class GetFingerAxis : MonoBehaviour
     void Update()
     {
         if (!got_info) return;
+        filter.Update(finger_transform.position, Time.deltaTime);
 
-        currentAcceleration = EstimateAccelerationWorld(finger_transform, Time.deltaTime,
-            ref prevPos, ref prevVel);
+        volumeMeter.value = CurrentAcc;
+        debugText.text = $"Pos:{CurrentPos}\nVel:{CurrentVel}\nAcc{CurrentAcc.x}";
     }
     public void GetFingerTransform(Transform _transform)
     {
