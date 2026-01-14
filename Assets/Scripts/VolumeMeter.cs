@@ -41,14 +41,8 @@ public class VolumeMeter : MonoBehaviour
         float level01 = (fullScale <= Mathf.Epsilon) ? 0f : Mathf.Clamp01(mag / fullScale);
         float targetWidth = level01 * maxWidth;
 
-        if (smoothTime > 0f)
-        {
-            _currentWidth = Mathf.SmoothDamp(_currentWidth, targetWidth, ref _widthVel, smoothTime);
-        }
-        else
-        {
-            _currentWidth = targetWidth;
-        }
+        _currentWidth = targetWidth;
+
 
         // 左端固定で幅だけ変える（anchor/pivotが左固定になってる前提）
         Vector2 size = bar.sizeDelta;

@@ -4,6 +4,7 @@
 // license that can be found in the LICENSE file or at
 // https://opensource.org/licenses/MIT.
 
+using System;
 using System.Collections;
 using Mediapipe.Tasks.Vision.HandLandmarker;
 using UnityEngine;
@@ -15,9 +16,43 @@ namespace Mediapipe.Unity.Sample.HandLandmarkDetection
   {
     [SerializeField] private HandLandmarkerResultAnnotationController _handLandmarkerResultAnnotationController;
 
+    // ★追加：Annotation（点・線）を動かしたくないなら false
+    [SerializeField] private bool _enableAnnotations = true;
+
+    // ★追加：メインスレッドで結果を受け取るイベント
+    public event Action<HandLandmarkerResult> OnHandLandmarkerResult;
+
     private Experimental.TextureFramePool _textureFramePool;
 
     public readonly HandLandmarkDetectionConfig config = new HandLandmarkDetectionConfig();
+
+    // ★追加：LIVE_STREAMコールバック→Updateへ渡すためのバッファ
+    private readonly object _resultLock = new object();
+    private bool _hasPendingResult = false;
+    private HandLandmarkerResult _pendingResult;   // コールバック側でCloneToする先
+    private HandLandmarkerResult _mainThreadResult; // Update側で受け取ってイベント発火する用
+
+    private void Update()
+    {
+      // ★コールバックで受けた結果を、メインスレッドでイベント発火
+      bool fire = false;
+
+      lock (_resultLock)
+      {
+        if (_hasPendingResult)
+        {
+          // pending -> mainThread に移し替え
+          _pendingResult.CloneTo(ref _mainThreadResult);
+          _hasPendingResult = false;
+          fire = true;
+        }
+      }
+
+      if (fire)
+      {
+        OnHandLandmarkerResult?.Invoke(_mainThreadResult);
+      }
+    }
 
     public override void Stop()
     {
@@ -38,10 +73,15 @@ namespace Mediapipe.Unity.Sample.HandLandmarkDetection
 
       yield return AssetLoader.PrepareAssetAsync(config.ModelPath);
 
-      var options = config.GetHandLandmarkerOptions(config.RunningMode == Tasks.Vision.Core.RunningMode.LIVE_STREAM ? OnHandLandmarkDetectionOutput : null);
-      taskApi = HandLandmarker.CreateFromOptions(options, GpuManager.GpuResources);
-      var imageSource = ImageSourceProvider.ImageSource;
+      // ★LIVE_STREAMでやる（InspectorでもOKだが、事故防止で強制）
+      config.RunningMode = Tasks.Vision.Core.RunningMode.LIVE_STREAM;
 
+      // ★LIVE_STREAMは「必ず」コールバック必須
+      var options = config.GetHandLandmarkerOptions(OnHandLandmarkDetectionOutput);
+
+      taskApi = HandLandmarker.CreateFromOptions(options, GpuManager.GpuResources);
+
+      var imageSource = ImageSourceProvider.ImageSource;
       yield return imageSource.Play();
 
       if (!imageSource.isPrepared)
@@ -57,7 +97,18 @@ namespace Mediapipe.Unity.Sample.HandLandmarkDetection
       // NOTE: The screen will be resized later, keeping the aspect ratio.
       screen.Initialize(imageSource);
 
-      SetupAnnotationController(_handLandmarkerResultAnnotationController, imageSource);
+      // ★AnnotationのON/OFF
+      if (_enableAnnotations)
+      {
+        SetupAnnotationController(_handLandmarkerResultAnnotationController, imageSource);
+      }
+      else
+      {
+        if (_handLandmarkerResultAnnotationController != null)
+        {
+          _handLandmarkerResultAnnotationController.gameObject.SetActive(false);
+        }
+      }
 
       var transformationOptions = imageSource.GetTransformationOptions();
       var flipHorizontally = transformationOptions.flipHorizontally;
@@ -67,7 +118,6 @@ namespace Mediapipe.Unity.Sample.HandLandmarkDetection
       AsyncGPUReadbackRequest req = default;
       var waitUntilReqDone = new WaitUntil(() => req.done);
       var waitForEndOfFrame = new WaitForEndOfFrame();
-      var result = HandLandmarkerResult.Alloc(options.numHands);
 
       // NOTE: we can share the GL context of the render thread with MediaPipe (for now, only on Android)
       var canUseGpuImage = SystemInfo.graphicsDeviceType == GraphicsDeviceType.OpenGLES3 && GpuManager.GpuResources != null;
@@ -101,12 +151,14 @@ namespace Mediapipe.Unity.Sample.HandLandmarkDetection
             // This usually works but is not guaranteed. Find a proper way to do this. See: https://github.com/homuler/MediaPipeUnityPlugin/pull/1311
             yield return waitForEndOfFrame;
             break;
+
           case ImageReadMode.CPU:
             yield return waitForEndOfFrame;
             textureFrame.ReadTextureOnCPU(imageSource.GetCurrentTexture(), flipHorizontally, flipVertically);
             image = textureFrame.BuildCPUImage();
             textureFrame.Release();
             break;
+
           case ImageReadMode.CPUAsync:
           default:
             req = textureFrame.ReadTextureAsync(imageSource.GetCurrentTexture(), flipHorizontally, flipVertically);
@@ -122,38 +174,25 @@ namespace Mediapipe.Unity.Sample.HandLandmarkDetection
             break;
         }
 
-        switch (taskApi.runningMode)
-        {
-          case Tasks.Vision.Core.RunningMode.IMAGE:
-            if (taskApi.TryDetect(image, imageProcessingOptions, ref result))
-            {
-              _handLandmarkerResultAnnotationController.DrawNow(result);
-            }
-            else
-            {
-              _handLandmarkerResultAnnotationController.DrawNow(default);
-            }
-            break;
-          case Tasks.Vision.Core.RunningMode.VIDEO:
-            if (taskApi.TryDetectForVideo(image, GetCurrentTimestampMillisec(), imageProcessingOptions, ref result))
-            {
-              _handLandmarkerResultAnnotationController.DrawNow(result);
-            }
-            else
-            {
-              _handLandmarkerResultAnnotationController.DrawNow(default);
-            }
-            break;
-          case Tasks.Vision.Core.RunningMode.LIVE_STREAM:
-            taskApi.DetectAsync(image, GetCurrentTimestampMillisec(), imageProcessingOptions);
-            break;
-        }
+        // ★LIVE_STREAM：非同期に投げる（結果は OnHandLandmarkDetectionOutput に返る）
+        taskApi.DetectAsync(image, GetCurrentTimestampMillisec(), imageProcessingOptions);
       }
     }
 
     private void OnHandLandmarkDetectionOutput(HandLandmarkerResult result, Image image, long timestamp)
     {
-      _handLandmarkerResultAnnotationController.DrawLater(result);
+      // ★Annotation：サンプル同様 DrawLater は「後で描く」なのでコールバックから呼んでOK
+      if (_enableAnnotations && _handLandmarkerResultAnnotationController != null)
+      {
+        _handLandmarkerResultAnnotationController.DrawLater(result);
+      }
+
+      // ★結果を保存（コールバックは別スレッドの可能性があるので lock）
+      lock (_resultLock)
+      {
+        result.CloneTo(ref _pendingResult);
+        _hasPendingResult = true;
+      }
     }
   }
 }
