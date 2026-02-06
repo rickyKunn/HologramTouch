@@ -49,5 +49,15 @@
     "com.unity.modules.vr": "1.0.0",
     "com.unity.modules.wind": "1.0.0",
     "com.unity.modules.xr": "1.0.0"
-  }
+  },
+  "scopedRegistries": [
+    {
+      "name": "Teach310",
+      "url": "https://registry.npmjs.com",
+      "scopes": [
+        "com.teach310"
+      ],
+      "overrideBuiltIns": true
+    }
+  ]
 }
