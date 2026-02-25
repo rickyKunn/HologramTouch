@@ -1,8 +1,14 @@
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.VFX;
+
+
 
 public class NormalizedToCanvasFollower : MonoBehaviour
 {
+    [Header("VFX Settings")]
+    [SerializeField] private VisualEffect vfx; // UnityEngine.VFX. を取ってシンプルに
+
     [Header("Reference (座標を合わせる基準Rect)")]
     [SerializeField] private RectTransform referenceRect; // Main Canvas全体 or 映像を貼ってるRawImageのRectなど
 
@@ -202,6 +208,13 @@ public class NormalizedToCanvasFollower : MonoBehaviour
                 {
                     targetRect.position = worldPos;
                 }
+
+            }
+            // ApplyIfNeeded メソッド内の、targetRect.position が決まった直後に追加
+            if (vfx != null)
+            {
+                // VFX内の "FingerPosition" という名前のプロパティに、ブロックのワールド座標を送る
+                vfx.SetVector3("FingerPosition", targetRect.position);
             }
         }
     }
