@@ -318,17 +318,17 @@ PrefabInstance:
     - target: {fileID: -8679921383154817045, guid: b4e483d4d5be047e99baee3a3fa7e67f,
         type: 3}
       propertyPath: m_LocalScale.x
-      value: 300
+      value: 1000
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: b4e483d4d5be047e99baee3a3fa7e67f,
         type: 3}
       propertyPath: m_LocalScale.y
-      value: 300
+      value: 1000
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: b4e483d4d5be047e99baee3a3fa7e67f,
         type: 3}
       propertyPath: m_LocalScale.z
-      value: 300
+      value: 1000
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: b4e483d4d5be047e99baee3a3fa7e67f,
         type: 3}
@@ -619,7 +619,6 @@ GameObject:
   - component: {fileID: 947076636}
   - component: {fileID: 947076638}
   - component: {fileID: 947076640}
-  - component: {fileID: 947076639}
   m_Layer: 5
   m_Name: DummyParticleForCollider
   m_TagString: FirstParticle
@@ -711,19 +710,6 @@ Rigidbody2D:
   m_SleepingMode: 1
   m_CollisionDetection: 0
   m_Constraints: 0
---- !u!114 &947076639
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 947076633}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d6f8b40b2f2fc4317997148491eec493, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  Emitter: {fileID: 1471638500}
 --- !u!58 &947076640
 CircleCollider2D:
   m_ObjectHideFlags: 0
@@ -1937,11 +1923,13 @@ MonoBehaviour:
   updateEveryFrame: 1
   mirrorX: 1
   mirrorCenterX01: 0.5
-  strengthX: 1
+  strengthX: 1.25
   strengthY: 1
   pivotInReferenceRect01: {x: 0.5, y: 0.5}
   invertX: 0
   invertY: 0
+  biasLocal: {x: -170, y: 210}
+  enableBias: 1
   enableSmoothing: 1
   smoothTime: 0.05
   maxSpeed: 5000
@@ -2060,6 +2048,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   Emitter: {fileID: 1471638500}
+  SparkEmitter: {fileID: 548707050351956372, guid: c2b620473c6c14660ba6bbcfacb9adcb,
+    type: 3}
 --- !u!1 &1969388814
 GameObject:
   m_ObjectHideFlags: 0

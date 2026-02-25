@@ -19,7 +19,7 @@ public class BluetoothSerialSender : MonoBehaviour
 
     // ===== ここをESP32側に合わせる =====
     // スキャンで探すAdvertise名（ESP32側の local_name と一致させる）
-    [SerializeField] private string targetPeripheralName = "hologramtouchESP32";
+    [SerializeField] private string targetPeripheralName = "bluetoothESP32";
 
     // NUS(UUID) ※ESP32側がNordic UART Serviceで動いてる場合
     [SerializeField] private string serviceUuid = "6E400001-B5A3-F393-E0A9-E50E24DCCA9E";
@@ -66,8 +66,6 @@ public class BluetoothSerialSender : MonoBehaviour
             if (peripheral.name != targetPeripheralName)
             {
                 Debug.Log("discover peripheral name: " + peripheral.name);
-
-                print(peripheral.name);
                 return;
 
             }

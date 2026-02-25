@@ -53,9 +53,10 @@ public class NormalizedToCanvasFollower : MonoBehaviour
     private Vector2 _latestNormalized;
     private bool _hasValue;
 
-    // ★補完用：現在位置と速度（SmoothDampが内部で使う）
-    private Vector2 _currentAnchoredPos;
-    private Vector2 _anchoredVel;
+    // ★補完用：現在の「ベース位置」と速度（SmoothDampが内部で使う）
+    // ※ここは bias を含めない（baseだけを平滑化し、最後にbiasを足す）
+    private Vector2 _currentBaseAnchoredPos;
+    private Vector2 _baseVel;
 
     // ★「最後に新しい値が来た時刻」
     private float _lastUpdateTime;
@@ -93,7 +94,9 @@ public class NormalizedToCanvasFollower : MonoBehaviour
         // 初期値
         if (targetRect != null)
         {
-            _currentAnchoredPos = targetRect.anchoredPosition;
+            // いま見えている位置から bias を引いたものを base として保持しておく
+            Vector2 now = targetRect.anchoredPosition;
+            _currentBaseAnchoredPos = enableBias ? (now - biasLocal) : now;
         }
         _lastUpdateTime = Time.unscaledTime;
     }
@@ -133,9 +136,6 @@ public class NormalizedToCanvasFollower : MonoBehaviour
         if (referenceRect == null || targetRect == null) return;
 
         // --- 1) 正規化(左上原点) -> Screenピクセル座標へ ---
-        // MediaPipe: yは下向き（上=0, 下=1）
-        // Unity Screen: yは上向き（下=0, 上=Screen.height）
-        // なので y を反転して Screen座標にする
         float screenX = _latestNormalized.x * Screen.width;
         float screenY = (1f - _latestNormalized.y) * Screen.height;
         Vector2 screenPoint = new Vector2(screenX, screenY);
@@ -148,64 +148,64 @@ public class NormalizedToCanvasFollower : MonoBehaviour
             // p は referenceRect ローカル座標系の点
             Vector2 p = localPoint;
 
-            // ★追加：左右反転（チェックONの時だけ）
-            // referenceRect内の mirrorCenterX01 の縦線を基準にミラーする
+            // ★左右反転（チェックONの時だけ）
             if (mirrorX)
             {
                 float mirrorCenterLocalX = GetLocalXAt01(referenceRect, mirrorCenterX01);
                 p.x = (2f * mirrorCenterLocalX) - p.x; // x' = 2c - x
             }
 
-            // 既存：軸反転（必要なら使う）
+            // 軸反転（必要なら）
             if (invertX) p.x = pivotLocal.x - (p.x - pivotLocal.x);
             if (invertY) p.y = pivotLocal.y - (p.y - pivotLocal.y);
 
-            // (B) 強度（感度）を適用： p' = c + (p - c) * strength
-            Vector2 pStrength;
-            pStrength.x = pivotLocal.x + (p.x - pivotLocal.x) * strengthX;
-            pStrength.y = pivotLocal.y + (p.y - pivotLocal.y) * strengthY;
-
-            // これが最終的な「目標位置」
-            Vector2 targetPos = pStrength;
-
-            // ★追加：基準ずらし（バイアス）
-            if (enableBias)
-            {
-                targetPos += biasLocal;
-            }
+            // 強度（感度）を適用： p' = c + (p - c) * strength
+            Vector2 baseTargetPos;
+            baseTargetPos.x = pivotLocal.x + (p.x - pivotLocal.x) * strengthX;
+            baseTargetPos.y = pivotLocal.y + (p.y - pivotLocal.y) * strengthY;
 
             // 結果がしばらく来てない場合、動きを止めたい/保持したい場合（任意）
             float dtNoUpdate = Time.unscaledTime - _lastUpdateTime;
             if (dtNoUpdate > noUpdateHoldSeconds)
             {
-                targetPos = _currentAnchoredPos;
+                // ★保持は base のみ（biasは最後に足すので、bias変更は保持中でも反映される）
+                baseTargetPos = _currentBaseAnchoredPos;
             }
+
+            // ★最終位置 = base + bias（biasはここで足すだけ）
+            Vector2 bias = enableBias ? biasLocal : Vector2.zero;
+            Vector2 finalTargetPos = baseTargetPos + bias;
 
             // --- 3) ターゲットを移動（補完あり/なし） ---
             if (targetRect.parent == referenceRect)
             {
                 if (enableSmoothing)
                 {
-                    _currentAnchoredPos = Vector2.SmoothDamp(
-                        _currentAnchoredPos,
-                        targetPos,
-                        ref _anchoredVel,
+                    // baseだけをSmoothDampして、最後にbiasを足す
+                    _currentBaseAnchoredPos = Vector2.SmoothDamp(
+                        _currentBaseAnchoredPos,
+                        baseTargetPos,
+                        ref _baseVel,
                         smoothTime,
                         maxSpeed,
                         Time.unscaledDeltaTime
                     );
-                    targetRect.anchoredPosition = _currentAnchoredPos;
+                    targetRect.anchoredPosition = _currentBaseAnchoredPos + bias;
                 }
                 else
                 {
-                    _currentAnchoredPos = targetPos;
-                    targetRect.anchoredPosition = targetPos;
+                    _currentBaseAnchoredPos = baseTargetPos;
+                    targetRect.anchoredPosition = finalTargetPos;
                 }
             }
             else
             {
                 // 親が違う場合は、referenceRectのローカル点 -> ワールドへ
-                Vector3 worldPos = referenceRect.TransformPoint(targetPos);
+                // ※finalTargetPosは referenceRect ローカル座標
+                Vector3 worldPos = referenceRect.TransformPoint(finalTargetPos);
+
+                // baseも更新しておく（保持ロジックのため）
+                _currentBaseAnchoredPos = baseTargetPos;
 
                 if (enableSmoothing)
                 {
