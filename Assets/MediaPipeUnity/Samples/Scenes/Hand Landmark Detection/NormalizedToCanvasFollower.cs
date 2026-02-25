@@ -35,6 +35,14 @@ public class NormalizedToCanvasFollower : MonoBehaviour
     [SerializeField] private bool invertX = false;
     [SerializeField] private bool invertY = false;
 
+    [Header("Bias (基準ずらし / オフセット)")]
+    // ★追加：最終位置に加算するバイアス（referenceRectローカル座標系の単位＝だいたいピクセル相当）
+    // 例: ( +20, -10 ) で右に20、下に10（※Rectの座標系に依存）
+    [SerializeField] private Vector2 biasLocal = Vector2.zero;
+
+    // ★追加：バイアスを有効にするチェック（不要なら消してOK）
+    [SerializeField] private bool enableBias = true;
+
     [Header("Smoothing (座標補完)")]
     [SerializeField] private bool enableSmoothing = true;     // 補完を使う
     [SerializeField] private float smoothTime = 0.05f;        // 小さいほど追従が速い（0.03〜0.12あたりから）
@@ -159,6 +167,12 @@ public class NormalizedToCanvasFollower : MonoBehaviour
 
             // これが最終的な「目標位置」
             Vector2 targetPos = pStrength;
+
+            // ★追加：基準ずらし（バイアス）
+            if (enableBias)
+            {
+                targetPos += biasLocal;
+            }
 
             // 結果がしばらく来てない場合、動きを止めたい/保持したい場合（任意）
             float dtNoUpdate = Time.unscaledTime - _lastUpdateTime;
