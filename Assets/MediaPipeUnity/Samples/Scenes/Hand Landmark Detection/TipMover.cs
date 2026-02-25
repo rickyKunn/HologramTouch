@@ -37,4 +37,5 @@ public class TipMover : MonoBehaviour
         if (!_hasTip) return;
         follower.SetNormalizedPosition(new Vector2(_tipN.x, _tipN.y));
     }
+
 }
