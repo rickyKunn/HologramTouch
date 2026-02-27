@@ -4,20 +4,15 @@ public class MoverCollisionManager : MonoBehaviour
 {
     [SerializeField] GameObject Emitter = null;
     [SerializeField] GameObject SparkEmitter = null;
+    [SerializeField] BluetoothSerialSender BLS;
     void Start()
     {
-
+        BLS = FindAnyObjectByType<BluetoothSerialSender>();
     }
 
     // Update is called once per frame
     void Update()
     {
-
-    }
-
-    private void OnTriggerEnter(Collider collision)
-    {
-        print("3d");
 
     }
     private void OnTriggerEnter2D(Collider2D other)
@@ -29,6 +24,7 @@ public class MoverCollisionManager : MonoBehaviour
             // Emitter.SetActive(true);
             var quat = GetXRotationFromRectPosition(this.GetComponent<RectTransform>());
             var newObj = Instantiate(SparkEmitter, new Vector3(0, 0, 0), quat);
+            BLS.Write();
             Destroy(newObj, 3f);
         }
     }
